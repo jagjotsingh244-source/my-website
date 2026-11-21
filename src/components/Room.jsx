@@ -7,7 +7,7 @@ import RainGlass from './RainGlass'
 import Outside from './Outside'
 
 // Room layout (metres). Floor is y = 0, back wall sits at z = -1.2.
-const FRAME_COLOR = '#ded6c8'
+const FRAME_COLOR = '#7b4f2c'
 export const WIN = { x0: -0.9, x1: 0.9, y0: 1.0, y1: 2.3 }
 const WALL_Z = -1.2
 
@@ -23,7 +23,7 @@ export function Box({ args, position, rotation, color, rough = 0.85, metal = 0, 
 function Walls() {
   const plaster = usePBR('plastered_wall_04', [1.5, 2])
   const floor = usePBR('wood_floor', [3, 3])
-  const wall = <meshStandardMaterial {...plaster} color="#c9b8a6" normalScale={[0.6, 0.6]} />
+  const wall = <meshStandardMaterial {...plaster} color="#e2c7a2" normalScale={[0.5, 0.5]} />
   const W = ({ args, position }) => (
     <mesh position={position} receiveShadow>
       <boxGeometry args={args} />
@@ -55,16 +55,19 @@ function WindowFrame() {
   const c = FRAME_COLOR
   return (
     <group>
-      <Box args={[0.06, 1.3, 0.14]} position={[-0.87, 1.65, z]} color={c} rough={0.5} />
-      <Box args={[0.06, 1.3, 0.14]} position={[0.87, 1.65, z]} color={c} rough={0.5} />
-      <Box args={[1.8, 0.06, 0.14]} position={[0, 2.27, z]} color={c} rough={0.5} />
-      <Box args={[1.8, 0.06, 0.14]} position={[0, 1.03, z]} color={c} rough={0.5} />
-      <Box args={[0.045, 1.25, 0.07]} position={[0, 1.65, z + 0.01]} color={c} rough={0.5} />
-      <Box args={[1.75, 0.04, 0.07]} position={[0, 1.93, z + 0.01]} color={c} rough={0.5} />
+      <Box args={[0.08, 1.3, 0.16]} position={[-0.86, 1.65, z]} color={c} rough={0.55} />
+      <Box args={[0.08, 1.3, 0.16]} position={[0.86, 1.65, z]} color={c} rough={0.55} />
+      <Box args={[1.8, 0.08, 0.16]} position={[0, 2.26, z]} color={c} rough={0.55} />
+      <Box args={[1.8, 0.08, 0.16]} position={[0, 1.04, z]} color={c} rough={0.55} />
+      {/* casement frames: two tall panes with small panes on top */}
+      <Box args={[0.07, 1.25, 0.09]} position={[0, 1.65, z + 0.02]} color={c} rough={0.55} />
+      <Box args={[1.72, 0.06, 0.09]} position={[0, 2.0, z + 0.02]} color={c} rough={0.55} />
+      <Box args={[0.05, 0.9, 0.06]} position={[-0.84, 1.53, z + 0.05]} color={c} rough={0.55} />
+      <Box args={[0.05, 0.9, 0.06]} position={[0.84, 1.53, z + 0.05]} color={c} rough={0.55} />
       {/* handle */}
-      <Box args={[0.015, 0.09, 0.025]} position={[0.06, 1.55, z + 0.06]} color="#b8a27a" rough={0.3} metal={0.8} />
+      <Box args={[0.016, 0.1, 0.03]} position={[0.07, 1.6, z + 0.08]} color="#c49a5a" rough={0.3} metal={0.8} />
       {/* sill */}
-      <Box args={[2.0, 0.035, 0.22]} position={[0, 0.99, -1.1]} color="#e8e1d6" rough={0.45} />
+      <Box args={[2.0, 0.04, 0.24]} position={[0, 0.99, -1.1]} color="#8a5a34" rough={0.5} />
       <RainGlass position={[0, 1.65, z - 0.02]} size={[1.75, 1.25]} />
     </group>
   )
@@ -90,7 +93,7 @@ function Curtain({ x, flip = 1, phase = 0, width = 0.3 }) {
   })
   return (
     <mesh geometry={geo} position={[x, 1.55, -1.05]} scale-x={flip} castShadow receiveShadow>
-      <meshStandardMaterial {...linen} color="#d8c4a6" side={THREE.DoubleSide} />
+      <meshStandardMaterial {...linen} color="#d6a96d" side={THREE.DoubleSide} />
     </mesh>
   )
 }
@@ -245,12 +248,12 @@ function PhotoFrame() {
   }, [tex])
   const spot = useMemo(() => {
     const o = new THREE.Object3D()
-    o.position.set(1.3, 1.62, -1.13)
+    o.position.set(1.42, 1.66, -1.13)
     return o
   }, [])
   return (
     <group>
-      <group position={[1.3, 1.68, -1.13]} scale={0.74}>
+      <group position={[1.42, 1.74, -1.13]} scale={1.05}>
         {/* frame, mat, photo, glass */}
         <Box args={[0.5, 0.6, 0.03]} position={[0, 0, 0]} color="#141210" rough={0.45} />
         <mesh position={[0, 0, 0.0155]}>
@@ -277,7 +280,7 @@ function PhotoFrame() {
       </group>
       <primitive object={spot} />
       <spotLight
-        position={[1.3, 1.98, -0.98]}
+        position={[1.42, 2.2, -0.85]}
         target={spot}
         angle={0.6}
         penumbra={1}
@@ -295,11 +298,8 @@ export default function Room() {
     <group>
       <Walls />
       <WindowFrame />
-      <Curtain x={-1.0} width={0.2} />
-      <Curtain x={1.0} width={0.2} flip={-1} phase={1.7} />
-      <FairyLights />
-      <Poster />
-      <Bookshelf />
+      <Curtain x={-1.15} width={0.6} />
+      <Curtain x={1.04} width={0.24} flip={-1} phase={1.7} />
       <PhotoFrame />
       <Outside />
     </group>

@@ -5,14 +5,18 @@ import { Html, RoundedBox } from '@react-three/drei'
 import { DESK_TOP } from './Desk'
 import { profile } from '../data/content'
 
-// A modern thin-bezel 16:9 monitor. SCREEN is used by the camera to zoom in.
+// An all-in-one desktop computer (iMac-style): thin coloured body with a chin,
+// white bezel and a slanted stand. SCREEN is used by the camera to zoom in.
 const PANEL_Z = -0.86
-const PANEL_DEPTH = 0.024
+const PANEL_DEPTH = 0.014
 export const SCREEN = {
   w: 0.6,
   h: 0.3375,
-  center: new THREE.Vector3(0, 1.085, PANEL_Z + PANEL_DEPTH / 2 + 0.0008),
+  center: new THREE.Vector3(0, 1.15, PANEL_Z + PANEL_DEPTH / 2 + 0.0018),
 }
+const BODY_COLOR = '#8ea7c2'
+const BEZEL = 0.022
+const CHIN = 0.078
 
 const TEX_W = 1600
 const TEX_H = 900
@@ -124,7 +128,11 @@ export default function Computer({ interactive, onEnter, screenContent }) {
     m.color.setScalar(v)
   })
 
-  const metal = { color: '#3a3c42', metalness: 0.85, roughness: 0.32 }
+  const alu = { color: BODY_COLOR, metalness: 0.55, roughness: 0.32 }
+  const top = SCREEN.center.y + SCREEN.h / 2 + BEZEL
+  const bottom = SCREEN.center.y - SCREEN.h / 2 - BEZEL - CHIN
+  const bodyH = top - bottom
+  const bodyW = SCREEN.w + BEZEL * 2
 
   return (
     <group
@@ -138,22 +146,27 @@ export default function Computer({ interactive, onEnter, screenContent }) {
       }}
       onPointerOut={() => setHovered(false)}
     >
-      {/* panel */}
-      <RoundedBox args={[0.616, 0.354, PANEL_DEPTH]} radius={0.006} position={[0, SCREEN.center.y, PANEL_Z]} castShadow>
-        <meshStandardMaterial {...metal} />
+      {/* body (back + coloured chin) */}
+      <RoundedBox args={[bodyW, bodyH, PANEL_DEPTH]} radius={0.006} position={[0, (top + bottom) / 2, PANEL_Z]} castShadow>
+        <meshStandardMaterial {...alu} />
       </RoundedBox>
+      {/* white bezel around the display */}
+      <mesh position={[0, SCREEN.center.y, PANEL_Z + PANEL_DEPTH / 2 + 0.0008]}>
+        <planeGeometry args={[bodyW - 0.004, SCREEN.h + BEZEL * 2 - 0.002]} />
+        <meshStandardMaterial color="#ecebe8" roughness={0.25} />
+      </mesh>
       {/* screen */}
       <mesh position={SCREEN.center}>
         <planeGeometry args={[SCREEN.w, SCREEN.h]} />
         <meshBasicMaterial ref={screenMat} map={texture} toneMapped={false} />
       </mesh>
-      {/* stand neck + base */}
-      <mesh position={[0, DESK_TOP + 0.15, PANEL_Z - 0.03]} rotation-x={-0.08} castShadow>
-        <boxGeometry args={[0.05, 0.3, 0.012]} />
-        <meshStandardMaterial {...metal} />
+      {/* slanted stand + flat foot */}
+      <mesh position={[0, (DESK_TOP + bottom + 0.12) / 2, PANEL_Z - 0.055]} rotation-x={0.42} castShadow>
+        <boxGeometry args={[0.15, bottom + 0.12 - DESK_TOP + 0.02, 0.01]} />
+        <meshStandardMaterial {...alu} />
       </mesh>
-      <RoundedBox args={[0.22, 0.01, 0.16]} radius={0.004} position={[0, DESK_TOP + 0.005, PANEL_Z - 0.02]} castShadow receiveShadow>
-        <meshStandardMaterial {...metal} />
+      <RoundedBox args={[0.15, 0.008, 0.17]} radius={0.003} position={[0, DESK_TOP + 0.004, PANEL_Z - 0.03]} castShadow receiveShadow>
+        <meshStandardMaterial {...alu} />
       </RoundedBox>
       {/* soft light the screen throws onto the desk and keyboard */}
       <rectAreaLight

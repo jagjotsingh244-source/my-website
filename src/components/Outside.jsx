@@ -7,7 +7,7 @@ import { asset } from '../assets'
 // Everything outside the window lives on layer 1. It is rendered into its own
 // buffer and then drawn through the rainy glass shader (see RainGlass.jsx).
 export const OUTSIDE_LAYER = 1
-export const SKY_COLOR = '#262a62'
+export const SKY_COLOR = '#171a26'
 
 function Skyline() {
   const tex = useTexture(asset('textures/skyline.jpg'))
@@ -22,7 +22,7 @@ function Skyline() {
   return (
     <mesh position={[14, -3.2 + h / 2, -120]}>
       <planeGeometry args={[w, h]} />
-      <meshBasicMaterial map={tex} color={[0.9, 0.9, 0.95]} toneMapped={false} />
+      <meshBasicMaterial map={tex} color={[0.95, 0.86, 0.76]} toneMapped={false} />
     </mesh>
   )
 }
@@ -59,7 +59,7 @@ function makeRooftops() {
     if (rand() > 0.7) blinkers.push([x + w / 2, top - 14])
     for (let wy = top + 12; wy < H - 8; wy += 30) {
       for (let wx = x + 12; wx < x + w - 22; wx += 26) {
-        windows.push({ x: wx, y: wy, on: rand() < 0.32, warm: rand() > 0.25, a: 0.45 + rand() * 0.55 })
+        windows.push({ x: wx, y: wy, on: rand() < 0.42, warm: rand() > 0.25, a: 0.45 + rand() * 0.55 })
       }
     }
     x += w + 4 + rand() * 30

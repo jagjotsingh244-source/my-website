@@ -85,7 +85,7 @@ const fragmentShader = /* glsl */ `
 
     vec2 suv = gl_FragCoord.xy / uRes;
     vec3 blur = vec3(0.0);
-    float rad = 0.009;
+    float rad = 0.0035;
     for (int i = 0; i < 16; i++) {
       float fi = float(i);
       float a = fi * 2.39996;
@@ -93,7 +93,7 @@ const fragmentShader = /* glsl */ `
       blur += texture2D(tOutside, suv + vec2(cos(a), sin(a) * uRes.x / uRes.y) * rr).rgb;
     }
     blur /= 16.0;
-    vec3 misty = blur * 0.88 + vec3(0.010, 0.012, 0.022);
+    vec3 misty = blur * 0.95 + vec3(0.006, 0.006, 0.01);
 
     // drops act like tiny lenses, so they show a flipped, sharper view
     vec3 sharp = texture2D(tOutside, suv - n * 0.014).rgb;
@@ -105,6 +105,9 @@ const fragmentShader = /* glsl */ `
     float spec = smoothstep(0.8, 0.97, dot(normalize(n + 1e-4), normalize(vec2(-0.45, 0.6))));
     col += vec3(1.0, 0.82, 0.62) * spec * dropMask * ln * 0.35;
 
+    // night city reads less saturated through wet glass
+    float lum = dot(col, vec3(0.299, 0.587, 0.114));
+    col = mix(col, vec3(lum) * vec3(1.0, 0.96, 0.9), 0.3);
     // faint reflection of the warm room on the inside of the glass
     col += vec3(1.0, 0.62, 0.32) * 0.025 * smoothstep(0.8, 0.0, vUv.x) * smoothstep(1.0, 0.1, vUv.y);
     gl_FragColor = vec4(col, 1.0);

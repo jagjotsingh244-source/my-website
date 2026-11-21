@@ -73,3 +73,18 @@ export const resume = {
   education: [{ degree: 'TODO Degree', school: 'TODO University', period: '2018 — 2022' }],
   skills: ['Python', 'Machine Learning', 'LLMs', 'SRE / DevOps', 'Data Structures & Algorithms'], // TODO
 }
+
+// Labels on the spines of the book stacks on the desk (up to 11).
+export const bookSpines = [
+  'Python',
+  'PyTorch',
+  'Hugging Face',
+  'LLMs',
+  'SRE',
+  'Kubernetes',
+  'Docker',
+  'DSA',
+  'Machine Learning',
+  'SQL',
+  'Linux',
+]
