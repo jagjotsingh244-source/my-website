@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Canvas } from '@react-three/fiber'
-import { useProgress } from '@react-three/drei'
-import Experience, { ROOM_POS } from './components/Experience'
+import Scene from './components/Scene'
 import Desktop from './components/Desktop'
 import useRainSound from './useRainSound'
 import { profile } from './data/content'
 
-// Wide screens show the desktop on the 3D monitor; phones get it full screen.
+// Wide screens show the desktop on the iMac in the picture; phones get it full screen.
 function useEmbedded() {
   const check = () => window.innerWidth >= 820 && window.innerHeight >= 500
   const [embedded, setEmbedded] = useState(check)
@@ -18,34 +16,16 @@ function useEmbedded() {
   return embedded
 }
 
-function Loader({ ready }) {
-  const { progress } = useProgress()
-  const [timedOut, setTimedOut] = useState(false)
-  useEffect(() => {
-    const id = setTimeout(() => setTimedOut(true), 20000)
-    return () => clearTimeout(id)
-  }, [])
-  const done = ready || timedOut
-  return (
-    <div className={`loader ${done ? 'done' : ''}`}>
-      <span>Switching on the lamp…</span>
-      <div className="loader-bar">
-        <span style={{ width: `${Math.round(progress)}%` }} />
-      </div>
-    </div>
-  )
-}
-
 // mode: 'room' → 'zoomIn' → 'desktop' → 'zoomOut' → 'room'
 export default function App() {
   const [mode, setMode] = useState('room')
   const [simple, setSimple] = useState(false)
   const [sound, setSound] = useState(false)
-  const embedded = useEmbedded()
   const [ready, setReady] = useState(false)
-  const onReady = useCallback(() => setTimeout(() => setReady(true), 300), [])
+  const embedded = useEmbedded()
   useRainSound(sound)
 
+  const onReady = useCallback(() => setReady(true), [])
   const enter = useCallback(() => setMode((m) => (m === 'room' ? 'zoomIn' : m)), [])
   const arrive = useCallback((m) => setMode(m === 'zoomIn' ? 'desktop' : 'room'), [])
   const exit = useCallback(() => {
@@ -57,6 +37,12 @@ export default function App() {
     setMode((m) => (m === 'desktop' ? 'zoomOut' : m))
   }, [simple])
 
+  // fail-safe: never leave the loader up
+  useEffect(() => {
+    const id = setTimeout(() => setReady(true), 15000)
+    return () => clearTimeout(id)
+  }, [])
+
   const toggleSound = () => setSound((s) => !s)
   const atDesk = mode === 'desktop'
   const desktopProps = { onExit: exit, sound, onToggleSound: toggleSound }
@@ -64,26 +50,23 @@ export default function App() {
   return (
     <>
       {!simple && (
-        <Canvas
-          className="scene"
-          shadows
-          dpr={[1, 1.75]}
-          camera={{ fov: 42, near: 0.05, far: 400, position: ROOM_POS }}
-          gl={{ antialias: false, powerPreference: 'high-performance' }}
-          onPointerMissed={() => atDesk && embedded && exit()}
-        >
-          <Experience
-            mode={mode}
-            embedded={embedded}
-            onEnter={enter}
-            onArrive={arrive}
-            onReady={onReady}
-            screenContent={atDesk && embedded ? <Desktop embedded visible {...desktopProps} /> : null}
-          />
-        </Canvas>
+        <Scene
+          mode={mode}
+          embedded={embedded}
+          onEnter={enter}
+          onArrive={arrive}
+          onReady={onReady}
+          onExit={exit}
+          screenContent={atDesk && embedded ? <Desktop embedded visible {...desktopProps} /> : null}
+        />
       )}
 
-      {!simple && <Loader ready={ready} />}
+      <div className={`loader ${ready || simple ? 'done' : ''}`}>
+        <span>Switching on the lamp…</span>
+        <div className="loader-bar">
+          <span />
+        </div>
+      </div>
 
       <div className={`hud ${mode === 'room' && !simple ? 'show' : ''}`}>
         <div className="hud-top">

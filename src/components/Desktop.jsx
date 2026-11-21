@@ -246,6 +246,7 @@ export default function Desktop({ visible, onExit, sound, onToggleSound, embedde
     <div
       ref={root}
       className={`desktop ${embedded ? 'embedded' : ''} ${visible ? 'show' : ''}`}
+      style={{ backgroundImage: `url(${import.meta.env.BASE_URL}scene/wallpaper.jpg)` }}
       aria-hidden={!visible}
       {...(embedded ? stopToScene : {})}
     >

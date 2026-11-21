@@ -17,7 +17,35 @@ html, body, #root {
   font-family: var(--font);
 }
 
-.scene { position: fixed !important; inset: 0; animation: fade-in 1.6s ease both; }
+.scene { position: fixed; inset: 0; overflow: hidden; background: #0d0b0a; }
+.stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  transition: transform 0.6s cubic-bezier(0.2, 0.7, 0.3, 1);
+  will-change: transform;
+}
+.stage.moving { transition: transform 1.6s cubic-bezier(0.65, 0, 0.35, 1); }
+.scene-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.steam { position: absolute; pointer-events: none; mix-blend-mode: screen; }
+.imac-screen {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  overflow: hidden;
+}
+.imac-screen.clickable { cursor: pointer; }
+.imac-screen.clickable::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(160, 190, 255, 0.16), rgba(160, 190, 255, 0.04) 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.imac-screen.clickable:hover::after { opacity: 1; }
 
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 
@@ -80,11 +108,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.45s ease, visibility 0s linear 0.45s;
-  /* matches drawWallpaper() in Computer.jsx */
-  background:
-    radial-gradient(circle at 15% 85%, rgba(70, 130, 255, 0.45), transparent 45%),
-    radial-gradient(circle at 85% 15%, rgba(255, 150, 90, 0.35), transparent 40%),
-    linear-gradient(135deg, #0f1535 0%, #3a1f6b 55%, #d4567a 100%);
+  /* wallpaper: bokeh city lights from the window (set inline, see Desktop.jsx) */
+  background-color: #1c1a22;
+  background-size: cover;
+  background-position: center;
 }
 .desktop.show { opacity: 1; visibility: visible; transition: opacity 0.45s ease; }
 
@@ -125,7 +152,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .loader.done { opacity: 0; visibility: hidden; }
 .loader-bar { width: 180px; height: 2px; background: rgba(255, 255, 255, 0.12); border-radius: 2px; overflow: hidden; }
-.loader-bar span { display: block; height: 100%; background: #ffb46e; transition: width 0.3s ease; }
+.loader-bar span { display: block; height: 100%; width: 35%; background: #ffb46e; animation: loading 1.2s ease-in-out infinite; }
+@keyframes loading { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
 
 .back-btn {
   position: fixed;

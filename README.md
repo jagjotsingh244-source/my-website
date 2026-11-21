@@ -1,15 +1,15 @@
 # Jagjot Singh — Portfolio
 
-An interactive 3D portfolio: a rainy-night room where clicking the computer zooms into a desktop with my projects, resume and contact info.
+An interactive portfolio: a cosy rainy-night room where clicking the iMac zooms into a desktop with my projects, resume and contact info.
 
 Live: https://jagjotsingh244-source.github.io/my-website/
 
-Built with React, Three.js (React Three Fiber) and Vite. Deployed with GitHub Pages.
+Built with React, a small WebGL shader (rain on the window, twinkling lights) and Vite. Deployed on Vercel and GitHub Pages.
 
 ## Update the content
 
 All text, projects and resume entries live in [`src/data/content.js`](src/data/content.js).
-To show your photo in the frame on the wall, add `public/assets/photo.jpg` (a square or portrait photo works best).
+The framed photo on the wall is part of the room image; see [`tools/scene`](tools/scene) to change it.
 
 To offer a resume download, add `public/resume.pdf` and set `resumePdf: 'resume.pdf'`.
 
@@ -24,4 +24,4 @@ Pushing to `main` redeploys the site automatically.
 
 ## Credits
 
-3D models, textures and HDRIs are CC0 assets from [Poly Haven](https://polyhaven.com). See [`public/assets/CREDITS.md`](public/assets/CREDITS.md).
+Room artwork based on the scene from [felixrieseberg.com](https://felixrieseberg.com), used with the owner's permission.
