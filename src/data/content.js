@@ -8,48 +8,36 @@ const GITHUB_USER = 'jagjotsingh244-source'
 
 export const profile = {
   name: 'Jagjot Singh',
-  role: 'AI & Software Engineer', // TODO
-  location: 'Your City, Country', // TODO
-  email: 'you@example.com', // TODO
+  role: 'Forward Deployed AI Engineer',
+  location: '', // TODO: e.g. 'Chandigarh, India' (hidden while empty)
+  email: 'jagjotsingh244@gmail.com',
   github: `https://github.com/${GITHUB_USER}`,
-  linkedin: 'https://www.linkedin.com/in/your-profile', // TODO
+  githubHandle: GITHUB_USER,
+  linkedin: 'https://www.linkedin.com/in/jagjotsingh0/',
+  linkedinHandle: 'jagjotsingh0',
   // Put your resume PDF in the /public folder as resume.pdf, then set this to 'resume.pdf'
-  resumePdf: '', // TODO
+  resumePdf: '',
 }
 
-export const about = [
-  "Hi, I'm Jagjot 👋",
-  'I build things with code — from small language models to the systems that keep them running.', // TODO
-  'This little room is my corner of the internet. Open the Projects folder to see what I have been working on, or the Resume to see where I have been.',
-  'Tip: drag windows around, press Esc to step back from the desk.',
-]
+// Small welcome card shown when someone sits down at the desk.
+export const welcome = {
+  greeting: "Hi, I'm Jagjot 👋",
+  line: 'I build LLM systems end to end, from fine-tuning small models to serving them reliably in production.',
+  hint: 'Open a folder to explore',
+}
 
-// Each project is a folder on the desktop. Clicking it opens `github` in a new tab.
+// Project cards. Clicking a card opens `github` in a new tab.
 export const projects = [
   {
-    name: 'customer-support-SLM',
+    name: 'Nova: customer-support SLM',
+    repo: 'customer-support-SLM',
+    status: 'In progress',
     description:
-      'A small language model fine-tuned to answer customer support questions. TODO: describe the dataset, model and results.',
-    tech: ['Python', 'PyTorch', 'Hugging Face'], // TODO
+      'A customer-support assistant built on Qwen3.5-2B for a demo online store. Policies come from RAG, order data from tool calls, tone and escalation from LoRA fine-tuning, and hard rules (who can see which order, return eligibility) are enforced in code.',
+    highlights: ['Served with vLLM at ~50 tok/s on a T4', 'Target: 3 s p95 reply with a tool call'],
+    tech: ['Qwen3.5-2B', 'LoRA · Unsloth', 'vLLM', 'RAG · pgvector', 'PostgreSQL', 'Tool calling'],
     github: `https://github.com/${GITHUB_USER}/customer-support-SLM`,
-    demo: '', // TODO: add a Hugging Face Spaces link when it is live
-    color: '#6c8cff',
-  },
-  {
-    name: 'project-two',
-    description: 'TODO: short description of your second project.',
-    tech: ['TODO'],
-    github: `https://github.com/${GITHUB_USER}`,
-    demo: '',
-    color: '#ff8a65',
-  },
-  {
-    name: 'project-three',
-    description: 'TODO: short description of your third project.',
-    tech: ['TODO'],
-    github: `https://github.com/${GITHUB_USER}`,
-    demo: '',
-    color: '#4dd0a1',
+    demo: '', // add a live demo link when there is one
   },
 ]
 
@@ -71,20 +59,6 @@ export const resume = {
     },
   ],
   education: [{ degree: 'TODO Degree', school: 'TODO University', period: '2018 — 2022' }],
-  skills: ['Python', 'Machine Learning', 'LLMs', 'SRE / DevOps', 'Data Structures & Algorithms'], // TODO
+  // from the tools used in customer-support-SLM; edit freely
+  skills: ['Python', 'LLM fine-tuning (LoRA)', 'RAG', 'vLLM', 'PostgreSQL · pgvector', 'Docker', 'Evals', 'SQL'],
 }
-
-// Labels on the spines of the book stacks on the desk (up to 11).
-export const bookSpines = [
-  'Python',
-  'PyTorch',
-  'Hugging Face',
-  'LLMs',
-  'SRE',
-  'Kubernetes',
-  'Docker',
-  'DSA',
-  'Machine Learning',
-  'SQL',
-  'Linux',
-]
