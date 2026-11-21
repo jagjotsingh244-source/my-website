@@ -13,7 +13,7 @@ export const profile = {
   email: 'you@example.com', // TODO
   github: `https://github.com/${GITHUB_USER}`,
   linkedin: 'https://www.linkedin.com/in/your-profile', // TODO
-  // Put your resume PDF in the /public folder as resume.pdf, then set this to '/resume.pdf'
+  // Put your resume PDF in the /public folder as resume.pdf, then set this to 'resume.pdf'
   resumePdf: '', // TODO
 }
 
