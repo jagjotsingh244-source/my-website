@@ -3,10 +3,10 @@ import { profile, about, projects, resume } from '../data/content'
 import { FolderIcon, DocIcon, NoteIcon, MailIcon, GithubIcon } from './Icons'
 
 const APPS = {
-  about: { title: 'About me.txt', w: 460, h: 340 },
-  projects: { title: 'Projects', w: 680, h: 440 },
-  resume: { title: 'Resume.pdf', w: 640, h: 560 },
-  contact: { title: 'Contact', w: 420, h: 300 },
+  about: { title: 'About me.txt', w: 440, h: 300 },
+  projects: { title: 'Projects', w: 620, h: 430 },
+  resume: { title: 'Resume.pdf', w: 580, h: 470 },
+  contact: { title: 'Contact', w: 400, h: 280 },
 }
 
 function useClock() {
@@ -18,29 +18,28 @@ function useClock() {
   return now
 }
 
-function Window({ id, z, onFocus, onClose, children, index }) {
+// bounds: size of the desktop in CSS px. getScale: on-screen px per CSS px
+// (the desktop is scaled when it is shown on the 3D monitor).
+function Window({ id, z, onFocus, onClose, children, index, bounds, getScale }) {
   const app = APPS[id]
-  const [pos, setPos] = useState(() => {
-    const vw = window.innerWidth
-    const vh = window.innerHeight
-    return {
-      x: Math.max(136, Math.min(vw - app.w - 16, vw / 2 - app.w / 2 + 40 + (index - 1) * 36)),
-      y: Math.max(44, Math.min(vh - app.h - 16, vh / 2 - app.h / 2 + (index - 1) * 30)),
-    }
-  })
+  const [pos, setPos] = useState(() => ({
+    x: Math.max(118, Math.min(bounds.w - app.w - 12, bounds.w / 2 - app.w / 2 + 50 + (index - 1) * 30)),
+    y: Math.max(44, Math.min(bounds.h - app.h - 12, bounds.h / 2 - app.h / 2 + 10 + (index - 1) * 24)),
+  }))
   const drag = useRef(null)
 
   const onPointerDown = (e) => {
     if (e.target.closest('button')) return
     onFocus()
-    drag.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y }
+    drag.current = { sx: e.clientX, sy: e.clientY, px: pos.x, py: pos.y, k: getScale() }
     e.currentTarget.setPointerCapture(e.pointerId)
   }
   const onPointerMove = (e) => {
-    if (!drag.current) return
+    const d = drag.current
+    if (!d) return
     setPos({
-      x: Math.min(window.innerWidth - 80, Math.max(-app.w + 80, e.clientX - drag.current.dx)),
-      y: Math.min(window.innerHeight - 40, Math.max(32, e.clientY - drag.current.dy)),
+      x: Math.min(bounds.w - 80, Math.max(-app.w + 80, d.px + (e.clientX - d.sx) / d.k)),
+      y: Math.min(bounds.h - 40, Math.max(32, d.py + (e.clientY - d.sy) / d.k)),
     })
   }
   const onPointerUp = () => (drag.current = null)
@@ -200,7 +199,17 @@ function ContactApp() {
 
 const CONTENT = { about: AboutApp, projects: ProjectsApp, resume: ResumeApp, contact: ContactApp }
 
-export default function Desktop({ visible, onExit, sound, onToggleSound }) {
+// Keep clicks on the on-screen desktop from also reaching the 3D scene
+// (which would treat them as "clicked outside the monitor" and zoom out).
+const stop = (e) => e.stopPropagation()
+const stopToScene = { onClick: stop, onPointerDown: stop, onPointerUp: stop, onPointerMove: stop, onWheel: stop }
+
+// embedded = shown on the 3D monitor at a fixed 1024x576 size;
+// otherwise it covers the whole browser window (phones, simple view).
+export default function Desktop({ visible, onExit, sound, onToggleSound, embedded = false }) {
+  const root = useRef(null)
+  const bounds = embedded ? { w: 1024, h: 576 } : { w: window.innerWidth, h: window.innerHeight }
+  const getScale = () => (root.current ? root.current.getBoundingClientRect().width / root.current.offsetWidth || 1 : 1)
   // id -> stacking order; an id being present means its window is open
   const [stack, setStack] = useState({ about: 1 })
   const top = useRef(1)
@@ -234,7 +243,12 @@ export default function Desktop({ visible, onExit, sound, onToggleSound }) {
   ]
 
   return (
-    <div className={`desktop ${visible ? 'show' : ''}`} aria-hidden={!visible}>
+    <div
+      ref={root}
+      className={`desktop ${embedded ? 'embedded' : ''} ${visible ? 'show' : ''}`}
+      aria-hidden={!visible}
+      {...(embedded ? stopToScene : {})}
+    >
       <div className="menubar">
         <span className="menubar-name">◆ {profile.name}</span>
         <div className="menubar-right">
@@ -274,6 +288,8 @@ export default function Desktop({ visible, onExit, sound, onToggleSound }) {
             key={id}
             id={id}
             index={index}
+            bounds={bounds}
+            getScale={getScale}
             z={10 + stack[id]}
             onFocus={() => openApp(id)}
             onClose={() => closeApp(id)}

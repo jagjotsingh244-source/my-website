@@ -9,6 +9,8 @@ Built with React, Three.js (React Three Fiber) and Vite. Deployed with GitHub Pa
 ## Update the content
 
 All text, projects and resume entries live in [`src/data/content.js`](src/data/content.js).
+To show your photo in the frame on the wall, add `public/assets/photo.jpg` (a square or portrait photo works best).
+
 To offer a resume download, add `public/resume.pdf` and set `resumePdf: 'resume.pdf'`.
 
 ## Run locally
@@ -19,3 +21,7 @@ npm run dev
 ```
 
 Pushing to `main` redeploys the site automatically.
+
+## Credits
+
+3D models, textures and HDRIs are CC0 assets from [Poly Haven](https://polyhaven.com). See [`public/assets/CREDITS.md`](public/assets/CREDITS.md).

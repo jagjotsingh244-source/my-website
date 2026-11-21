@@ -1,11 +1,28 @@
 import * as THREE from 'three'
 import { useLayoutEffect, useMemo, useRef } from 'react'
-import { RoundedBox } from '@react-three/drei'
+import { useFrame } from '@react-three/fiber'
+import { RoundedBox, useGLTF } from '@react-three/drei'
+import { asset, usePBR } from '../assets'
 import { Box } from './Room'
 
 export const DESK_TOP = 0.785
 
+function useModel(path) {
+  const { scene } = useGLTF(asset(path))
+  const model = useMemo(() => scene.clone(true), [scene])
+  useLayoutEffect(() => {
+    model.traverse((o) => {
+      if (o.isMesh) {
+        o.castShadow = true
+        o.receiveShadow = true
+      }
+    })
+  }, [model])
+  return model
+}
+
 function Table() {
+  const oak = usePBR('oak_veneer_01', [1.2, 0.5])
   const legs = [
     [-0.95, -0.42],
     [0.95, -0.42],
@@ -14,12 +31,15 @@ function Table() {
   ]
   return (
     <group>
-      <Box args={[2.0, 0.05, 0.78]} position={[0, 0.76, -0.75]} color="#7a5236" rough={0.55} />
+      <mesh position={[0, 0.76, -0.75]} castShadow receiveShadow>
+        <boxGeometry args={[2.0, 0.05, 0.78]} />
+        <meshStandardMaterial {...oak} color="#7a5a44" normalScale={[0.3, 0.3]} envMapIntensity={0.6} />
+      </mesh>
       {legs.map(([x, z], i) => (
-        <Box key={i} args={[0.04, 0.735, 0.04]} position={[x, 0.3675, z]} color="#151515" metal={0.6} rough={0.4} />
+        <Box key={i} args={[0.04, 0.735, 0.04]} position={[x, 0.3675, z]} color="#1c1c1e" metal={0.6} rough={0.4} />
       ))}
-      {/* desk mat */}
-      <Box args={[0.95, 0.003, 0.4]} position={[0, DESK_TOP + 0.0015, -0.56]} color="#26292f" rough={1} cast={false} />
+      {/* felt desk mat */}
+      <Box args={[0.95, 0.003, 0.4]} position={[0, DESK_TOP + 0.0015, -0.56]} color="#3a3d44" rough={1} cast={false} />
     </group>
   )
 }
@@ -43,11 +63,11 @@ function Keyboard() {
   return (
     <group position={[0, DESK_TOP + 0.006, -0.52]} rotation-x={0.04}>
       <RoundedBox args={[0.4, 0.01, 0.155]} radius={0.004} castShadow receiveShadow>
-        <meshStandardMaterial color="#8d9098" metalness={0.5} roughness={0.4} />
+        <meshStandardMaterial color="#5c5f66" metalness={0.8} roughness={0.35} />
       </RoundedBox>
       <instancedMesh ref={keys} args={[null, null, cols * rows]} position={[0, 0.007, 0]} castShadow>
         <boxGeometry args={[0.022, 0.005, 0.022]} />
-        <meshStandardMaterial color="#a9adb5" roughness={0.7} />
+        <meshStandardMaterial color="#26282c" roughness={0.6} />
       </instancedMesh>
     </group>
   )
@@ -57,78 +77,84 @@ function Mouse() {
   return (
     <mesh position={[0.32, DESK_TOP + 0.012, -0.52]} scale={[0.032, 0.016, 0.055]} castShadow>
       <sphereGeometry args={[1, 24, 16]} />
-      <meshStandardMaterial color="#e9eaec" roughness={0.4} />
+      <meshStandardMaterial color="#2b2d31" roughness={0.35} metalness={0.2} />
     </mesh>
   )
 }
 
 function Lamp() {
+  const model = useModel('models/desk_lamp_arm_01/desk_lamp_arm_01_1k.gltf')
+  const target = useMemo(() => {
+    const o = new THREE.Object3D()
+    o.position.set(-0.4, DESK_TOP, -0.62)
+    return o
+  }, [])
+  // The clamp sits on the back edge of the desk; the head reaches over the desk.
   return (
-    <group>
-      <mesh position={[-0.72, DESK_TOP + 0.01, -0.98]} castShadow>
-        <cylinderGeometry args={[0.07, 0.075, 0.02, 32]} />
-        <meshStandardMaterial color="#1b1b1d" metalness={0.6} roughness={0.35} />
-      </mesh>
-      <mesh position={[-0.72, DESK_TOP + 0.22, -0.98]} castShadow>
-        <cylinderGeometry args={[0.008, 0.008, 0.42, 12]} />
-        <meshStandardMaterial color="#1b1b1d" metalness={0.6} roughness={0.35} />
-      </mesh>
-      <mesh position={[-0.6, DESK_TOP + 0.43, -0.98]} rotation-z={Math.PI / 2 + 0.15} castShadow>
-        <cylinderGeometry args={[0.007, 0.007, 0.25, 12]} />
-        <meshStandardMaterial color="#1b1b1d" metalness={0.6} roughness={0.35} />
-      </mesh>
-      <mesh position={[-0.49, DESK_TOP + 0.38, -0.98]} castShadow>
-        <coneGeometry args={[0.085, 0.11, 32, 1, true]} />
-        <meshStandardMaterial color="#c9553f" roughness={0.5} side={THREE.DoubleSide} />
-      </mesh>
-      <mesh position={[-0.49, DESK_TOP + 0.345, -0.98]}>
-        <sphereGeometry args={[0.022, 16, 16]} />
-        <meshBasicMaterial color={[4, 2.6, 1.4]} toneMapped={false} />
-      </mesh>
-      <pointLight
-        position={[-0.49, DESK_TOP + 0.3, -0.95]}
-        intensity={1.6}
-        distance={5}
-        decay={1.6}
-        color="#ffae5e"
-        castShadow
-        shadow-mapSize={[1024, 1024]}
-        shadow-bias={-0.002}
-      />
+    <>
+    <primitive object={target} />
+    <group position={[-0.72, DESK_TOP, -0.82]} rotation-y={Math.PI + 0.55} scale={0.82}>
+      <primitive object={model} />
+      {/* bulb sits at roughly (0, 0.69, -0.18) in the model */}
+      <group position={[0, 0.66, -0.18]}>
+        <spotLight
+          target={target}
+          angle={0.85}
+          penumbra={0.9}
+          intensity={16}
+          distance={4}
+          decay={1.5}
+          color="#ffb46e"
+          castShadow
+          shadow-mapSize={[2048, 2048]}
+          shadow-bias={-0.0005}
+          shadow-normalBias={0.02}
+          shadow-radius={6}
+        />
+        <pointLight intensity={0.35} distance={3} decay={1.5} color="#ffb46e" />
+      </group>
     </group>
+    </>
   )
 }
 
 function Plant() {
-  const leaves = useMemo(
-    () =>
-      Array.from({ length: 11 }, (_, i) => {
-        const a = (i / 11) * Math.PI * 2 + (i % 2) * 0.3
-        const tilt = 0.5 + (i % 3) * 0.25
-        const len = 0.1 + (i % 4) * 0.02
-        return { a, tilt, len, shade: i % 2 ? '#3f7d45' : '#4f9a55' }
-      }),
-    []
-  )
+  const model = useModel('models/potted_plant_02/potted_plant_02_1k.gltf')
+  return <primitive object={model} position={[0.78, DESK_TOP, -0.93]} scale={0.55} rotation-y={0.6} />
+}
+
+function Clock() {
+  const model = useModel('models/alarm_clock_01/alarm_clock_01_1k.gltf')
+  return <primitive object={model} position={[0.56, DESK_TOP, -0.98]} rotation-y={-0.45} scale={0.9} />
+}
+
+function Steam() {
+  const tex = useMemo(() => {
+    const c = document.createElement('canvas')
+    c.width = c.height = 64
+    const ctx = c.getContext('2d')
+    const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32)
+    g.addColorStop(0, 'rgba(255,255,255,0.5)')
+    g.addColorStop(1, 'rgba(255,255,255,0)')
+    ctx.fillStyle = g
+    ctx.fillRect(0, 0, 64, 64)
+    return new THREE.CanvasTexture(c)
+  }, [])
+  const puffs = useRef()
+  useFrame(({ clock }) => {
+    puffs.current.children.forEach((s, i) => {
+      const t = (clock.elapsedTime * 0.25 + i / 6) % 1
+      s.position.set(Math.sin(t * 6 + i) * 0.012, t * 0.18, 0)
+      s.scale.setScalar(0.03 + t * 0.06)
+      s.material.opacity = Math.sin(t * Math.PI) * 0.16
+    })
+  })
   return (
-    <group position={[0.78, DESK_TOP, -0.95]}>
-      <mesh position={[0, 0.08, 0]} castShadow receiveShadow>
-        <cylinderGeometry args={[0.085, 0.065, 0.16, 32]} />
-        <meshStandardMaterial color="#b5653d" roughness={0.9} />
-      </mesh>
-      <mesh position={[0, 0.155, 0]}>
-        <cylinderGeometry args={[0.078, 0.078, 0.01, 32]} />
-        <meshStandardMaterial color="#2a1b12" roughness={1} />
-      </mesh>
-      {leaves.map((l, i) => (
-        <group key={i} position={[0, 0.16, 0]} rotation={[0, l.a, 0]}>
-          <group rotation={[0, 0, -l.tilt]}>
-            <mesh position={[0, l.len + 0.04, 0]} scale={[0.045, l.len, 0.012]} castShadow>
-              <sphereGeometry args={[1, 16, 12]} />
-              <meshStandardMaterial color={l.shade} roughness={0.7} />
-            </mesh>
-          </group>
-        </group>
+    <group ref={puffs} position={[0, 0.11, 0]}>
+      {Array.from({ length: 6 }, (_, i) => (
+        <sprite key={i}>
+          <spriteMaterial map={tex} transparent depthWrite={false} color="#fff3e6" />
+        </sprite>
       ))}
     </group>
   )
@@ -136,19 +162,20 @@ function Plant() {
 
 function Mug() {
   return (
-    <group position={[0.47, DESK_TOP, -0.66]}>
-      <mesh position={[0, 0.05, 0]} castShadow>
-        <cylinderGeometry args={[0.038, 0.034, 0.1, 32]} />
-        <meshStandardMaterial color="#ece6db" roughness={0.35} />
+    <group position={[0.45, DESK_TOP, -0.64]}>
+      <mesh position={[0, 0.05, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[0.038, 0.035, 0.1, 40]} />
+        <meshPhysicalMaterial color="#e9e3d8" roughness={0.25} clearcoat={0.8} clearcoatRoughness={0.15} />
       </mesh>
-      <mesh position={[0, 0.097, 0]}>
-        <cylinderGeometry args={[0.034, 0.034, 0.004, 32]} />
-        <meshStandardMaterial color="#2a160c" roughness={0.2} />
+      <mesh position={[0, 0.093, 0]}>
+        <cylinderGeometry args={[0.034, 0.034, 0.004, 40]} />
+        <meshPhysicalMaterial color="#2a150a" roughness={0.1} clearcoat={1} />
       </mesh>
-      <mesh position={[0.042, 0.052, 0]} castShadow>
-        <torusGeometry args={[0.022, 0.006, 10, 24]} />
-        <meshStandardMaterial color="#ece6db" roughness={0.35} />
+      <mesh position={[0.043, 0.052, 0]} castShadow>
+        <torusGeometry args={[0.022, 0.006, 12, 28]} />
+        <meshPhysicalMaterial color="#e9e3d8" roughness={0.25} clearcoat={0.8} />
       </mesh>
+      <Steam />
     </group>
   )
 }
@@ -156,20 +183,20 @@ function Mug() {
 function Clutter() {
   return (
     <group>
-      {/* stacked books */}
-      <Box args={[0.22, 0.035, 0.16]} position={[0.5, DESK_TOP + 0.0175, -1.0]} color="#35495e" />
-      <Box args={[0.2, 0.03, 0.15]} position={[0.5, DESK_TOP + 0.05, -1.0]} rotation={[0, 0.12, 0]} color="#d9a441" />
-      <Box args={[0.18, 0.028, 0.14]} position={[0.5, DESK_TOP + 0.079, -1.0]} rotation={[0, -0.08, 0]} color="#b8483e" />
       {/* notebook + pen */}
-      <Box args={[0.15, 0.012, 0.21]} position={[-0.42, DESK_TOP + 0.006, -0.6]} rotation={[0, 0.2, 0]} color="#c8b89a" />
-      <mesh position={[-0.4, DESK_TOP + 0.016, -0.6]} rotation={[Math.PI / 2, 0, 0.9]} castShadow>
-        <cylinderGeometry args={[0.004, 0.004, 0.14, 10]} />
-        <meshStandardMaterial color="#1f3b73" />
+      <Box args={[0.15, 0.012, 0.21]} position={[-0.42, DESK_TOP + 0.006, -0.6]} rotation={[0, 0.2, 0]} color="#c7b48e" />
+      <Box args={[0.148, 0.002, 0.205]} position={[-0.42, DESK_TOP + 0.0125, -0.6]} rotation={[0, 0.2, 0]} color="#f3ede0" cast={false} />
+      <mesh position={[-0.4, DESK_TOP + 0.017, -0.6]} rotation={[Math.PI / 2, 0, 0.9]} castShadow>
+        <cylinderGeometry args={[0.004, 0.004, 0.14, 12]} />
+        <meshStandardMaterial color="#1f3b73" metalness={0.4} roughness={0.3} />
       </mesh>
       {/* phone */}
-      <RoundedBox args={[0.07, 0.008, 0.145]} radius={0.003} position={[-0.62, DESK_TOP + 0.004, -0.55]} rotation={[0, -0.25, 0]} castShadow>
-        <meshStandardMaterial color="#111214" metalness={0.4} roughness={0.25} />
+      <RoundedBox args={[0.072, 0.008, 0.148]} radius={0.003} position={[-0.6, DESK_TOP + 0.004, -0.5]} rotation={[0, -0.25, 0]} castShadow>
+        <meshPhysicalMaterial color="#0e0f11" metalness={0.3} roughness={0.15} clearcoat={1} />
       </RoundedBox>
+      {/* two hardback books */}
+      <Box args={[0.21, 0.03, 0.15]} position={[0.36, DESK_TOP + 0.015, -1.0]} rotation={[0, 0.1, 0]} color="#2f4a5e" rough={0.7} />
+      <Box args={[0.19, 0.026, 0.14]} position={[0.36, DESK_TOP + 0.043, -1.0]} rotation={[0, -0.06, 0]} color="#8c3b32" rough={0.7} />
     </group>
   )
 }
@@ -182,6 +209,7 @@ export default function Desk() {
       <Mouse />
       <Lamp />
       <Plant />
+      <Clock />
       <Mug />
       <Clutter />
     </group>

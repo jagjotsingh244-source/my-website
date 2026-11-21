@@ -88,6 +88,59 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .desktop.show { opacity: 1; visibility: visible; transition: opacity 0.45s ease; }
 
+/* desktop drawn on the 3D monitor */
+.desktop.embedded {
+  position: relative;
+  inset: auto;
+  width: 1024px;
+  height: 576px;
+  overflow: hidden;
+  animation: screen-on 0.6s ease both;
+}
+@keyframes screen-on {
+  from { opacity: 0; filter: brightness(2.2) blur(2px); }
+  to { opacity: 1; filter: none; }
+}
+.screen-html { user-select: none; }
+.desktop.embedded .icons { top: 46px; gap: 0; }
+.desktop.embedded .icon { padding: 5px 4px; }
+.desktop.embedded .icon svg { width: 50px; height: 50px; }
+
+/* loading screen */
+.loader {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: #07080f;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  transition: opacity 0.8s ease, visibility 0s linear 0.8s;
+}
+.loader.done { opacity: 0; visibility: hidden; }
+.loader-bar { width: 180px; height: 2px; background: rgba(255, 255, 255, 0.12); border-radius: 2px; overflow: hidden; }
+.loader-bar span { display: block; height: 100%; background: #ffb46e; transition: width 0.3s ease; }
+
+.back-btn {
+  position: fixed;
+  top: 20px;
+  left: 24px;
+  z-index: 40;
+  background: rgba(10, 10, 20, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 13px;
+  backdrop-filter: blur(8px);
+}
+.back-btn:hover { background: rgba(255, 255, 255, 0.18); }
+
 .menubar {
   position: absolute;
   top: 0;

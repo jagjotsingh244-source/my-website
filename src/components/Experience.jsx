@@ -1,13 +1,19 @@
 import * as THREE from 'three'
-import { useEffect, useRef } from 'react'
+import { Suspense, useEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing'
+import { Environment } from '@react-three/drei'
+import { EffectComposer, Bloom, Vignette, N8AO } from '@react-three/postprocessing'
+import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLightUniformsLib.js'
 import Room from './Room'
 import Desk from './Desk'
 import Computer, { SCREEN } from './Computer'
+import { SKY_COLOR } from './Outside'
+import { asset } from '../assets'
+
+RectAreaLightUniformsLib.init()
 
 const ROOM_LOOK = new THREE.Vector3(0, 1.17, -1.0)
-export const ROOM_POS = [0, 1.42, 1.05]
+export const ROOM_POS = [0, 1.42, 1.25]
 
 const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
 
@@ -17,32 +23,41 @@ function roomView(aspect) {
   return new THREE.Vector3(ROOM_POS[0], ROOM_POS[1] + back * 0.15, ROOM_POS[2] + back)
 }
 
-// Camera position where the monitor's screen exactly covers the viewport.
-function screenView(camera) {
-  const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))
-  const dH = SCREEN.h / 2 / tanHalf
-  const dW = SCREEN.w / 2 / (tanHalf * camera.aspect)
-  const d = Math.min(dH, dW) * 0.97
-  return SCREEN.center.clone().add(new THREE.Vector3(0, 0, d))
+const tanHalf = (camera) => Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))
+
+// Like leaning in towards the monitor: it fills most of the view,
+// but you still see the bezel, stand and the desk around it.
+function eyeView(camera) {
+  const dW = SCREEN.w / (0.74 * 2 * tanHalf(camera) * camera.aspect)
+  const dH = SCREEN.h / (0.8 * 2 * tanHalf(camera))
+  return SCREEN.center.clone().add(new THREE.Vector3(0, 0.01, Math.max(dW, dH)))
 }
 
-function CameraRig({ mode, onArrive }) {
+// Phones: the screen covers the whole viewport and the HTML desktop takes over.
+function screenView(camera) {
+  const dH = SCREEN.h / 2 / tanHalf(camera)
+  const dW = SCREEN.w / 2 / (tanHalf(camera) * camera.aspect)
+  return SCREEN.center.clone().add(new THREE.Vector3(0, 0, Math.min(dH, dW) * 0.97))
+}
+
+function CameraRig({ mode, embedded, onArrive }) {
   const { camera, pointer } = useThree()
   const look = useRef(ROOM_LOOK.clone())
   const tween = useRef(null)
+  const closeView = embedded ? eyeView : screenView
 
   useEffect(() => {
     if (mode !== 'zoomIn' && mode !== 'zoomOut') return
     const zoomIn = mode === 'zoomIn'
     tween.current = {
       t: 0,
-      dur: zoomIn ? 1.6 : 1.3,
+      dur: zoomIn ? 1.8 : 1.4,
       fromPos: camera.position.clone(),
       fromLook: look.current.clone(),
-      toPos: zoomIn ? screenView(camera) : roomView(camera.aspect),
+      toPos: zoomIn ? closeView(camera) : roomView(camera.aspect),
       toLook: zoomIn ? SCREEN.center.clone() : ROOM_LOOK.clone(),
     }
-  }, [mode, camera])
+  }, [mode, camera, closeView])
 
   useFrame((_, dt) => {
     const tw = tween.current
@@ -59,39 +74,50 @@ function CameraRig({ mode, onArrive }) {
       return
     }
     if (mode === 'room') {
-      // gentle parallax following the mouse
-      const base = roomView(camera.aspect)
-      const goal = base.add(new THREE.Vector3(pointer.x * 0.12, pointer.y * 0.06, 0))
+      const goal = roomView(camera.aspect).add(new THREE.Vector3(pointer.x * 0.12, pointer.y * 0.06, 0))
       camera.position.x = THREE.MathUtils.damp(camera.position.x, goal.x, 3, dt)
       camera.position.y = THREE.MathUtils.damp(camera.position.y, goal.y, 3, dt)
       camera.position.z = THREE.MathUtils.damp(camera.position.z, goal.z, 3, dt)
       camera.lookAt(look.current)
     } else if (mode === 'desktop') {
-      camera.position.copy(screenView(camera))
+      camera.position.copy(closeView(camera))
+      look.current.copy(SCREEN.center)
       camera.lookAt(SCREEN.center)
     }
   })
   return null
 }
 
-export default function Experience({ mode, onEnter, onArrive }) {
+// Mounts only once everything inside <Suspense> has loaded.
+function Ready({ onReady }) {
+  useEffect(() => {
+    onReady?.()
+  }, [onReady])
+  return null
+}
+
+export default function Experience({ mode, embedded, onEnter, onArrive, screenContent, onReady }) {
   return (
     <>
-      <color attach="background" args={['#05070f']} />
-      <ambientLight intensity={0.35} color="#8a90c8" />
-      <hemisphereLight args={['#6f7fd6', '#2b1e17', 0.25]} />
-      {/* cool moonlight coming through the window */}
-      <directionalLight position={[1.5, 4, -6]} intensity={0.5} color="#7d90ff" />
+      <color attach="background" args={[SKY_COLOR]} />
+      <ambientLight intensity={0.03} color="#8088c0" />
+      {/* cool city light coming in through the window */}
+      <rectAreaLight position={[0, 1.65, -1.12]} rotation-y={Math.PI} width={1.75} height={1.25} intensity={1.6} color="#7a86ff" />
 
-      <Room />
-      <Desk />
-      <Computer interactive={mode === 'room'} onEnter={onEnter} />
+      <Suspense fallback={null}>
+        <Environment files={asset('hdri/room_1k.hdr')} environmentIntensity={0.12} />
+        <Room />
+        <Desk />
+        <Computer interactive={mode === 'room'} onEnter={onEnter} screenContent={screenContent} />
+        <Ready onReady={onReady} />
+      </Suspense>
 
-      <CameraRig mode={mode} onArrive={onArrive} />
+      <CameraRig mode={mode} embedded={embedded} onArrive={onArrive} />
 
-      <EffectComposer multisampling={4}>
-        <Bloom mipmapBlur intensity={0.75} luminanceThreshold={0.85} luminanceSmoothing={0.2} />
-        <Vignette offset={0.3} darkness={0.65} />
+      <EffectComposer multisampling={0}>
+        <N8AO halfRes aoRadius={0.3} intensity={2.2} distanceFalloff={0.5} />
+        <Bloom mipmapBlur intensity={0.7} luminanceThreshold={0.9} luminanceSmoothing={0.25} />
+        <Vignette offset={0.28} darkness={0.7} />
       </EffectComposer>
     </>
   )

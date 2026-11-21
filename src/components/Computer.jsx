@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { RoundedBox } from '@react-three/drei'
+import { Html, RoundedBox } from '@react-three/drei'
 import { DESK_TOP } from './Desk'
 import { profile } from '../data/content'
 
@@ -80,7 +80,12 @@ function drawLockScreen(ctx) {
   ctx.fillText('Click to enter  →', W / 2, H * 0.75 + 60)
 }
 
-export default function Computer({ interactive, onEnter }) {
+// The desktop UI is a 1024x576 web page placed onto the screen in 3D.
+export const SCREEN_PX = { w: 1024, h: 576 }
+// drei's <Html transform> renders 40 CSS px per world unit at scale 1.
+const HTML_SCALE = SCREEN.w / (SCREEN_PX.w / 40)
+
+export default function Computer({ interactive, onEnter, screenContent }) {
   const [hovered, setHovered] = useState(false)
   const screenMat = useRef()
   const canvas = useMemo(() => {
@@ -119,7 +124,7 @@ export default function Computer({ interactive, onEnter }) {
     m.color.setScalar(v)
   })
 
-  const metal = { color: '#2a2c31', metalness: 0.7, roughness: 0.3 }
+  const metal = { color: '#3a3c42', metalness: 0.85, roughness: 0.32 }
 
   return (
     <group
@@ -150,8 +155,26 @@ export default function Computer({ interactive, onEnter }) {
       <RoundedBox args={[0.22, 0.01, 0.16]} radius={0.004} position={[0, DESK_TOP + 0.005, PANEL_Z - 0.02]} castShadow receiveShadow>
         <meshStandardMaterial {...metal} />
       </RoundedBox>
-      {/* glow the screen throws onto the desk */}
-      <pointLight position={[0, 1.05, -0.6]} intensity={active ? 0.5 : 0.3} distance={1.4} decay={2} color="#9a8cff" />
+      {/* soft light the screen throws onto the desk and keyboard */}
+      <rectAreaLight
+        position={[0, SCREEN.center.y, SCREEN.center.z + 0.01]}
+        rotation-y={Math.PI}
+        width={SCREEN.w}
+        height={SCREEN.h}
+        intensity={active ? 3 : 2}
+        color="#a58cff"
+      />
+      {screenContent && (
+        <Html
+          transform
+          position={[SCREEN.center.x, SCREEN.center.y, SCREEN.center.z + 0.001]}
+          scale={HTML_SCALE}
+          zIndexRange={[30, 20]}
+          className="screen-html"
+        >
+          {screenContent}
+        </Html>
+      )}
     </group>
   )
 }
