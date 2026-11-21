@@ -1,5 +1,55 @@
 import cv2, numpy as np, sys, os
-work, photo_path, out_dir = sys.argv[1], sys.argv[2], sys.argv[3]
+# Usage:
+#   process.py clean <work_dir> <out_dir>                       -> work/clean.jpg + out/room-fx.png
+#   process.py frame <base_image> <photo> <out_image> <scale>   -> framed photo composited at that scale
+step = sys.argv[1]
+if step == 'frame':
+    base_path, photo_path, out_path, SCALE = sys.argv[2], sys.argv[3], sys.argv[4], float(sys.argv[5])
+    clean = cv2.imread(base_path)
+    H, W = clean.shape[:2]
+    rng = np.random.default_rng(3)
+    S = lambda v: v * SCALE
+    # wall light around the frame: heavily blurred base image
+    wall_light = cv2.GaussianBlur(clean.astype(np.float32), (0, 0), S(25))
+    FW, FH = int(600 * SCALE / 2 * 2), int(790 * SCALE / 2 * 2)
+    k = FW / 600
+    frame = np.zeros((FH, FW, 3), np.float32)
+    frame[:] = (28, 34, 42)
+    border, mat = int(34 * k), int(58 * k)
+    frame[border:FH - border, border:FW - border] = (196, 214, 226)
+    px0, py0, px1, py1 = border + mat, border + mat, FW - border - mat, FH - border - mat - int(18 * k)
+    ph = cv2.imread(photo_path)
+    tw, th = px1 - px0, py1 - py0
+    sc = max(tw / ph.shape[1], th / ph.shape[0])
+    ph = cv2.resize(ph, (int(ph.shape[1] * sc + 1), int(ph.shape[0] * sc + 1)), interpolation=cv2.INTER_AREA)
+    ox, oy = (ph.shape[1] - tw) // 2, max(0, int((ph.shape[0] - th) * 0.25))
+    frame[py0:py1, px0:px1] = ph[oy:oy + th, ox:ox + tw]
+    cv2.rectangle(frame, (px0 - int(3 * k), py0 - int(3 * k)), (px1 + int(2 * k), py1 + int(2 * k)), (225, 236, 242), max(1, int(3 * k)))
+    cv2.rectangle(frame, (2, 2), (FW - 3, FH - 3), (52, 62, 74), max(1, int(4 * k)))
+    cv2.line(frame, (border, border), (FW - border, border), (14, 17, 22), max(1, int(5 * k)))
+    cv2.line(frame, (border, border), (border, FH - border), (14, 17, 22), max(1, int(5 * k)))
+    yy, xx = np.mgrid[0:FH, 0:FW].astype(np.float32) / k
+    band = np.exp(-((xx * 0.8 - yy * 0.6 - 60) / 70) ** 2) * 0.10
+    frame = frame * (1 - band[..., None]) + 255 * band[..., None]
+    dst = np.float32([[1897, 106], [2150, 109], [2146, 444], [1891, 441]]) * SCALE
+    src = np.float32([[0, 0], [FW, 0], [FW, FH], [0, FH]])
+    M = cv2.getPerspectiveTransform(src, dst)
+    warped = cv2.warpPerspective(frame, M, (W, H), flags=cv2.INTER_AREA)
+    fmask = cv2.warpPerspective(np.ones((FH, FW), np.float32), M, (W, H), flags=cv2.INTER_LINEAR)
+    wall_albedo = np.array([150, 178, 205], np.float32)
+    light = np.clip(wall_light / wall_albedo, 0, 1.6)
+    lit = warped / 255 * light * 255
+    lit = cv2.GaussianBlur(lit, (0, 0), 0.6) + rng.normal(0, 2.2, (H, W, 1))
+    shadow = cv2.warpPerspective(np.ones((FH, FW), np.float32), cv2.getPerspectiveTransform(src, dst + np.float32([S(9), S(13)])), (W, H))
+    shadow = cv2.GaussianBlur(shadow, (0, 0), S(9)) * 0.5
+    out = clean.astype(np.float32) * (1 - shadow[..., None])
+    fm = fmask[..., None]
+    out = np.clip(out * (1 - fm) + lit * fm, 0, 255).astype(np.uint8)
+    cv2.imwrite(out_path, out, [cv2.IMWRITE_JPEG_QUALITY, 90])
+    print('framed', out.shape)
+    sys.exit(0)
+
+work, out_dir = sys.argv[2], sys.argv[3]
 im = cv2.imread(os.path.join(work, 'source.jpg'))
 H, W = im.shape[:2]
 rng = np.random.default_rng(3)
@@ -31,51 +81,8 @@ pm_soft = cv2.GaussianBlur(pm.astype(np.float32) / 255, (0, 0), 3)[..., None]
 clean = (clean * (1 - pm_soft) + filled * pm_soft).astype(np.uint8)
 wall_light = cv2.GaussianBlur(filled, (0, 0), 25)  # local wall colour, for lighting the frame
 
-# ---------- 3. framed photo ----------
-FW, FH = 600, 790  # frame drawn flat at high resolution, then warped onto the wall
-frame = np.zeros((FH, FW, 3), np.float32)
-frame[:] = (28, 34, 42)  # dark walnut (BGR)
-border, mat = 34, 58
-frame[border:FH - border, border:FW - border] = (196, 214, 226)  # warm off-white mat
-# photo opening
-px0, py0, px1, py1 = border + mat, border + mat, FW - border - mat, FH - border - mat - 18
-ph = cv2.imread(photo_path)
-tw, th = px1 - px0, py1 - py0
-s = max(tw / ph.shape[1], th / ph.shape[0])
-ph = cv2.resize(ph, (int(ph.shape[1] * s + 1), int(ph.shape[0] * s + 1)), interpolation=cv2.INTER_AREA)
-ox, oy = (ph.shape[1] - tw) // 2, max(0, int((ph.shape[0] - th) * 0.25))
-frame[py0:py1, px0:px1] = ph[oy:oy + th, ox:ox + tw]
-# mat bevel + frame bevel
-cv2.rectangle(frame, (px0 - 3, py0 - 3), (px1 + 2, py1 + 2), (225, 236, 242), 3)
-cv2.rectangle(frame, (2, 2), (FW - 3, FH - 3), (52, 62, 74), 4)
-cv2.line(frame, (border, border), (FW - border, border), (14, 17, 22), 5)
-cv2.line(frame, (border, border), (border, FH - border), (14, 17, 22), 5)
-# glass: soft diagonal reflection
-yy, xx = np.mgrid[0:FH, 0:FW].astype(np.float32)
-band = np.exp(-((xx * 0.8 - yy * 0.6 - 60) / 70) ** 2) * 0.10
-frame = frame * (1 - band[..., None]) + 255 * band[..., None]
-
-dst = np.float32([[1897, 106], [2150, 109], [2146, 444], [1891, 441]])
-src = np.float32([[0, 0], [FW, 0], [FW, FH], [0, FH]])
-M = cv2.getPerspectiveTransform(src, dst)
-warped = cv2.warpPerspective(frame, M, (W, H), flags=cv2.INTER_AREA)
-fmask = cv2.warpPerspective(np.ones((FH, FW), np.float32), M, (W, H), flags=cv2.INTER_LINEAR)
-
-# light the frame like the wall around it (assumed wall albedo ~ warm beige)
-wall_albedo = np.array([150, 178, 205], np.float32)
-light = np.clip(wall_light / wall_albedo, 0, 1.6)
-lit = warped / 255 * light * 255
-# soften to the image's look + matching grain
-lit = cv2.GaussianBlur(lit, (0, 0), 0.7) + rng.normal(0, 2.5, (H, W, 1))
-
-# drop shadow on the wall
-shadow = cv2.warpPerspective(np.ones((FH, FW), np.float32), cv2.getPerspectiveTransform(src, dst + np.float32([9, 13])), (W, H))
-shadow = cv2.GaussianBlur(shadow, (0, 0), 9) * 0.5
-out = clean.astype(np.float32) * (1 - shadow[..., None])
-fm = fmask[..., None]
-out = out * (1 - fm) + lit * fm
-out = np.clip(out, 0, 255).astype(np.uint8)
-cv2.imwrite(os.path.join(out_dir, 'room.jpg'), out, [cv2.IMWRITE_JPEG_QUALITY, 92])
+out = clean
+cv2.imwrite(os.path.join(work, 'clean.jpg'), clean, [cv2.IMWRITE_JPEG_QUALITY, 97])
 
 # ---------- 4. effect mask: R = window glass, G = fairy lights, B = city lights ----------
 glass = np.zeros((H, W), np.uint8)
@@ -105,17 +112,4 @@ city = cv2.GaussianBlur(city, (0, 0), 2)
 fx = cv2.merge([city, fairy, glass])  # BGR -> stored as RGB = (glass, fairy, city)
 cv2.imwrite(os.path.join(out_dir, 'room-fx.png'), fx)
 
-# ---------- 5. desktop wallpaper from the rainy city in the window ----------
-crop = im[215:600, 1015:1495]
-wp = cv2.resize(crop, (1920, 1080), interpolation=cv2.INTER_CUBIC)
-wp = cv2.GaussianBlur(wp, (0, 0), 28).astype(np.float32)
-# bokeh: enlarge bright points into soft discs
-pts = cv2.resize(((cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY) > 150) * 255).astype(np.uint8), (1920, 1080))
-bok = cv2.GaussianBlur(cv2.dilate(pts, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31))).astype(np.float32), (0, 0), 10)
-warm = np.array([110, 175, 255], np.float32)
-wp = wp * 1.15 + (bok[..., None] / 255) * warm * 0.55
-gy = np.linspace(0, 1, 1080, dtype=np.float32)[:, None, None]
-wp = wp * (0.75 + 0.35 * gy) + np.array([28, 14, 4], np.float32) * (1 - gy)  # deeper navy at the top
-wp += rng.normal(0, 2, wp.shape)
-cv2.imwrite(os.path.join(out_dir, 'wallpaper.jpg'), np.clip(wp, 0, 255).astype(np.uint8), [cv2.IMWRITE_JPEG_QUALITY, 88])
-print('done', out.shape)
+print('cleaned', out.shape)

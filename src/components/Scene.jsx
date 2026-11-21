@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import SceneCanvas from './SceneCanvas'
+import CrtScreen, { ScreenGlass } from './CrtScreen'
 
-// The room is one pre-rendered image (2172 x 1216). Everything interactive is
-// positioned in that image's pixel coordinates and the whole "stage" is scaled
-// to the window, so clicks and overlays always line up with the picture.
+// The room is one pre-rendered photo. Its coordinates (1x) are 2172 x 1216; the file
+// itself is a 2x AI-upscaled version so it stays sharp when zoomed in. Everything
+// interactive is positioned in image pixels and the whole "stage" is moved and scaled.
 export const IMG = { w: 2172, h: 1216 }
 // iMac display corners in image pixels: top-left, top-right, bottom-right, bottom-left
 export const SCREEN_QUAD = [
@@ -14,8 +15,11 @@ export const SCREEN_QUAD = [
 ]
 export const SCREEN_PX = { w: 1024, h: 576 }
 const MUG_TOP = [745, 982]
+// window + fairy lights: the part drawn with live rain effects
+const FX_REGION = { x: 250, y: 0, w: 1480, h: 736 }
 
 const base = import.meta.env.BASE_URL
+const ROOM_SRC = `${base}scene/room@2x.jpg`
 
 // ── perspective mapping: CSS matrix3d that maps a w x h box onto 4 points ──
 function adj(m) {
@@ -44,7 +48,6 @@ function basis(p) {
   return mul(m, [v[0], 0, 0, 0, v[1], 0, 0, 0, v[2]])
 }
 export function quadMatrix(w, h, quad) {
-  // order for the maths: TL, TR, BL, BR
   const [tl, tr, br, bl] = quad
   const t = mul(basis([tl, tr, bl, br]), adj(basis([[0, 0], [w, 0], [0, h], [w, h]])))
   for (let i = 0; i < 9; i++) t[i] /= t[8]
@@ -59,32 +62,24 @@ const quadBox = (() => {
   return { x0, y0, w: Math.max(...xs) - x0, h: Math.max(...ys) - y0 }
 })()
 
-// Where the stage sits on screen: { s: scale, x, y: translation }.
+// ── camera: where the stage sits on screen { s: scale, x, y } ──
+const PARALLAX = { x: 0.03, y: 0.022 } // fraction of the viewport the room drifts with the mouse
 function roomView(vw, vh) {
   const portrait = vw / vh < 1.2
-  const s = Math.max(vw / IMG.w, vh / IMG.h) * 1.03
-  // keep the framed photo in view on wide screens, the iMac on phones
-  const ax = portrait ? (quadBox.x0 + quadBox.w / 2) / IMG.w : 0.85
+  // a little larger than "cover" so the mouse drift never shows an edge
+  const s = Math.max(vw / IMG.w, vh / IMG.h) * (1 + PARALLAX.x * 2.4)
+  const ax = portrait ? (quadBox.x0 + quadBox.w / 2) / IMG.w : 0.82
   return { s, x: (vw - IMG.w * s) * ax, y: (vh - IMG.h * s) * 0.5 }
 }
 function zoomView(vw, vh, embedded) {
   const s = embedded
-    ? Math.min((vw * 0.72) / quadBox.w, (vh * 0.78) / quadBox.h) // leaning in: bezel + desk still visible
+    ? Math.min((vw * 0.7) / quadBox.w, (vh * 0.76) / quadBox.h) // leaning in: bezel + desk still visible
     : Math.max(vw / quadBox.w, vh / quadBox.h) // phones: the screen fills the view
   const cx = quadBox.x0 + quadBox.w / 2
   const cy = quadBox.y0 + quadBox.h / 2
   return { s, x: vw / 2 - cx * s, y: vh / 2 - cy * s + (embedded ? vh * 0.02 : 0) }
 }
-
-function useViewport() {
-  const [v, setV] = useState({ w: window.innerWidth, h: window.innerHeight })
-  useEffect(() => {
-    const on = () => setV({ w: window.innerWidth, h: window.innerHeight })
-    window.addEventListener('resize', on)
-    return () => window.removeEventListener('resize', on)
-  }, [])
-  return v
-}
+const easeInOut = (t) => (t < 0.5 ? 8 * t ** 4 : 1 - (-2 * t + 2) ** 4 / 2) // quartic: slow start, glide, soft landing
 
 function Steam() {
   const ref = useRef(null)
@@ -119,43 +114,92 @@ function Steam() {
     raf = requestAnimationFrame(draw)
     return () => cancelAnimationFrame(raf)
   }, [])
-  return (
-    <canvas
-      ref={ref}
-      width={180}
-      height={240}
-      className="steam"
-      style={{ left: MUG_TOP[0] - 90, top: MUG_TOP[1] - 230 }}
-    />
-  )
+  return <canvas ref={ref} width={180} height={240} className="steam" style={{ left: MUG_TOP[0] - 90, top: MUG_TOP[1] - 230 }} />
 }
 
 // mode: 'room' | 'zoomIn' | 'desktop' | 'zoomOut'
 export default function Scene({ mode, embedded, onEnter, onArrive, onReady, onExit, screenContent }) {
-  const vp = useViewport()
-  const [pointer, setPointer] = useState({ x: 0, y: 0 })
-  const zoomed = mode === 'zoomIn' || mode === 'desktop'
+  const stage = useRef(null)
+  const cam = useRef(null)
+  const tween = useRef(null)
+  const pointer = useRef({ x: 0, y: 0 })
+  const latest = useRef({ mode, embedded, onArrive })
+  latest.current = { mode, embedded, onArrive }
+  const [showDesktop, setShowDesktop] = useState(false)
 
+  // pointer position, -0.5..0.5
   useEffect(() => {
-    if (zoomed) return
-    const on = (e) => setPointer({ x: e.clientX / window.innerWidth - 0.5, y: e.clientY / window.innerHeight - 0.5 })
+    const on = (e) => {
+      pointer.current = { x: e.clientX / window.innerWidth - 0.5, y: e.clientY / window.innerHeight - 0.5 }
+    }
     window.addEventListener('pointermove', on)
     return () => window.removeEventListener('pointermove', on)
-  }, [zoomed])
+  }, [])
 
-  const view = zoomed ? zoomView(vp.w, vp.h, embedded) : roomView(vp.w, vp.h)
-  // gentle parallax in the room
-  const px = zoomed ? 0 : -pointer.x * 14
-  const py = zoomed ? 0 : -pointer.y * 8
-
-  // tell the app when a zoom transition has finished
+  // start a zoom when the mode changes
   useEffect(() => {
     if (mode !== 'zoomIn' && mode !== 'zoomOut') return
-    const id = setTimeout(() => onArrive(mode), 1650)
-    return () => clearTimeout(id)
-  }, [mode, onArrive])
+    if (mode === 'zoomOut') setShowDesktop(false)
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    const from = cam.current || roomView(vw, vh)
+    const to = mode === 'zoomIn' ? zoomView(vw, vh, embedded) : roomView(vw, vh)
+    tween.current = { start: performance.now(), dur: mode === 'zoomIn' ? 1900 : 1500, from, to, mode }
+    stage.current.style.willChange = 'transform'
+  }, [mode, embedded])
+
+  // one animation loop drives the camera: zoom tweens, mouse drift, resizing
+  useEffect(() => {
+    let raf
+    let last = performance.now()
+    const smooth = { x: 0, y: 0 }
+    const loop = (now) => {
+      const dt = Math.min(0.05, (now - last) / 1000)
+      last = now
+      const vw = window.innerWidth
+      const vh = window.innerHeight
+      const { mode: m, embedded: emb } = latest.current
+      const tw = tween.current
+      let v
+      if (tw) {
+        const p = Math.min(1, (now - tw.start) / tw.dur)
+        const e = easeInOut(p)
+        // zoom in log space (constant perceived speed), keep the focus point gliding
+        const s = Math.exp(Math.log(tw.from.s) + (Math.log(tw.to.s) - Math.log(tw.from.s)) * e)
+        const f0 = { x: (vw / 2 - tw.from.x) / tw.from.s, y: (vh / 2 - tw.from.y) / tw.from.s }
+        const f1 = { x: (vw / 2 - tw.to.x) / tw.to.s, y: (vh / 2 - tw.to.y) / tw.to.s }
+        const fx = f0.x + (f1.x - f0.x) * e
+        const fy = f0.y + (f1.y - f0.y) * e
+        v = { s, x: vw / 2 - fx * s, y: vh / 2 - fy * s }
+        if (tw.mode === 'zoomIn' && p > 0.9) setShowDesktop(true)
+        if (p >= 1) {
+          tween.current = null
+          smooth.x = 0
+          smooth.y = 0
+          // let the browser re-render at the final size so everything is crisp
+          if (tw.mode === 'zoomIn') stage.current.style.willChange = 'auto'
+          latest.current.onArrive(tw.mode)
+        }
+      } else if (m === 'desktop') {
+        v = zoomView(vw, vh, emb)
+      } else {
+        // floaty mouse drift
+        const k = 1 - Math.exp(-dt * 3.2)
+        smooth.x += (pointer.current.x - smooth.x) * k
+        smooth.y += (pointer.current.y - smooth.y) * k
+        const r = roomView(vw, vh)
+        v = { s: r.s, x: r.x - smooth.x * vw * PARALLAX.x * 2, y: r.y - smooth.y * vh * PARALLAX.y * 2 }
+      }
+      cam.current = v
+      stage.current.style.transform = `translate3d(${v.x}px, ${v.y}px, 0) scale(${v.s})`
+      raf = requestAnimationFrame(loop)
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [])
 
   const screenTransform = useMemo(() => quadMatrix(SCREEN_PX.w, SCREEN_PX.h, SCREEN_QUAD), [])
+  const deskVisible = showDesktop && screenContent
 
   return (
     <div
@@ -165,13 +209,19 @@ export default function Scene({ mode, embedded, onEnter, onArrive, onReady, onEx
         if (mode === 'desktop' && !e.target.closest('.imac-screen')) onExit()
       }}
     >
-      <div
-        className={`stage ${mode === 'zoomIn' || mode === 'zoomOut' ? 'moving' : ''}`}
-        style={{ width: IMG.w, height: IMG.h, transform: `translate(${view.x + px}px, ${view.y + py}px) scale(${view.s})` }}
-      >
-        <SceneCanvas imgSrc={`${base}scene/room.jpg`} fxSrc={`${base}scene/room-fx.png`} width={IMG.w} height={IMG.h} onReady={onReady} />
+      <div ref={stage} className="stage" style={{ width: IMG.w, height: IMG.h, willChange: 'transform' }}>
+        <img
+          className="room-img"
+          src={ROOM_SRC}
+          width={IMG.w}
+          height={IMG.h}
+          alt="A cosy desk by a rainy window at night, with an iMac, books and a framed photo"
+          draggable={false}
+          onLoad={(e) => e.currentTarget.decode?.().catch(() => {}).finally(onReady)}
+        />
+        <SceneCanvas imgSrc={ROOM_SRC} fxSrc={`${base}scene/room-fx.png`} imgSize={IMG} region={FX_REGION} />
         <Steam />
-        {/* the iMac screen: a click target in the room, the desktop once zoomed in */}
+        {/* the iMac screen: CLICK TO ENTER in the room, the desktop once zoomed in */}
         <div
           className={`imac-screen ${mode === 'room' ? 'clickable' : ''}`}
           style={{ width: SCREEN_PX.w, height: SCREEN_PX.h, transform: screenTransform }}
@@ -179,7 +229,9 @@ export default function Scene({ mode, embedded, onEnter, onArrive, onReady, onEx
           role={mode === 'room' ? 'button' : undefined}
           aria-label={mode === 'room' ? 'Click the computer to enter' : undefined}
         >
-          {screenContent}
+          <CrtScreen />
+          <div className={`screen-desktop ${deskVisible ? 'on' : ''}`}>{deskVisible ? screenContent : null}</div>
+          <ScreenGlass />
         </div>
       </div>
     </div>

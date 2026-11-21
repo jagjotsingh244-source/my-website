@@ -57,7 +57,7 @@ export default function App() {
           onArrive={arrive}
           onReady={onReady}
           onExit={exit}
-          screenContent={atDesk && embedded ? <Desktop embedded visible {...desktopProps} /> : null}
+          screenContent={embedded ? <Desktop embedded visible {...desktopProps} /> : null}
         />
       )}
 

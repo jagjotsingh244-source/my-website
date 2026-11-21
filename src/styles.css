@@ -23,11 +23,10 @@ html, body, #root {
   left: 0;
   top: 0;
   transform-origin: 0 0;
-  transition: transform 0.6s cubic-bezier(0.2, 0.7, 0.3, 1);
-  will-change: transform;
 }
-.stage.moving { transition: transform 1.6s cubic-bezier(0.65, 0, 0.35, 1); }
-.scene-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.room-img { position: absolute; left: 0; top: 0; display: block; user-select: none; -webkit-user-drag: none; }
+.scene-canvas { position: absolute; display: block; opacity: 0; transition: opacity 0.6s ease; }
+.scene-canvas.ready { opacity: 1; }
 .steam { position: absolute; pointer-events: none; mix-blend-mode: screen; }
 .imac-screen {
   position: absolute;
@@ -35,17 +34,84 @@ html, body, #root {
   top: 0;
   transform-origin: 0 0;
   overflow: hidden;
+  border-radius: 3px;
+  background: #3d4f8f;
 }
 .imac-screen.clickable { cursor: pointer; }
+
+/* rebuilt CLICK TO ENTER screen (colours sampled from the photo) */
+.crt {
+  position: absolute;
+  inset: 0;
+  font-family: 'VT323', ui-monospace, monospace;
+  color: #f4f7ff;
+  background: radial-gradient(ellipse 75% 70% at 50% 46%, rgb(100, 120, 186) 0%, rgb(82, 102, 167) 55%, rgb(60, 77, 140) 100%);
+}
+.crt::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 0 3px, rgba(10, 16, 60, 0.2) 3px 7px);
+  pointer-events: none;
+}
+.crt-ch { position: absolute; top: 58px; right: 118px; font-size: 38px; letter-spacing: 3px; opacity: 0.92; }
+.crt-title {
+  position: absolute;
+  top: 128px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 84px;
+  letter-spacing: 9px;
+  color: #ffffff;
+  text-shadow: 0 0 6px rgba(255, 255, 255, 0.9), 0 0 22px rgba(190, 215, 255, 0.85), 0 0 48px rgba(150, 185, 255, 0.55);
+  animation: crt-pulse 2.6s ease-in-out infinite;
+}
+@keyframes crt-pulse { 50% { opacity: 0.78; text-shadow: 0 0 4px rgba(255, 255, 255, 0.7), 0 0 14px rgba(190, 215, 255, 0.6); } }
+.crt-bar {
+  position: absolute;
+  top: 262px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  font-size: 40px;
+  letter-spacing: 1px;
+  color: #e8eeff;
+  text-shadow: 0 0 10px rgba(190, 215, 255, 0.6);
+}
+.crt-blocks { letter-spacing: -2px; }
+.imac-screen.clickable:hover .crt-title { animation-play-state: paused; opacity: 1; }
 .imac-screen.clickable::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at center, rgba(160, 190, 255, 0.16), rgba(160, 190, 255, 0.04) 70%);
+  background: radial-gradient(ellipse at center, rgba(190, 210, 255, 0.14), transparent 70%);
   opacity: 0;
   transition: opacity 0.3s ease;
+  pointer-events: none;
 }
 .imac-screen.clickable:hover::after { opacity: 1; }
+
+/* desktop fades in on top of the CRT screen as the camera arrives */
+.screen-desktop { position: absolute; inset: 0; opacity: 0; transition: opacity 0.5s ease; }
+.screen-desktop.on { opacity: 1; }
+
+/* glass on top of the screen so content sits *in* the iMac, not on top of the photo */
+.screen-glass {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 2px rgba(10, 12, 20, 0.85), inset 0 0 14px 3px rgba(0, 0, 0, 0.45);
+  background:
+    linear-gradient(118deg, rgba(255, 236, 210, 0.09) 0%, rgba(255, 236, 210, 0.03) 28%, transparent 46%),
+    radial-gradient(ellipse 120% 90% at 50% 50%, transparent 60%, rgba(0, 0, 0, 0.22) 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
+  mix-blend-mode: normal;
+  opacity: 0.9;
+}
 
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 

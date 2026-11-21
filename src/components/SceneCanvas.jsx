@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react'
 
-// Draws the room image with live effects on top, using a small WebGL shader:
-// rain drops sliding down the window, falling rain, twinkling fairy lights and
-// shimmering city lights. room-fx.png says where: R = glass, G = fairy lights, B = city lights.
+// Live effects for the window area of the room image, drawn with a small WebGL shader:
+// rain drops sliding down the glass, falling rain, twinkling fairy lights and shimmering
+// city lights. Only the window region is drawn (the rest of the room is a plain <img>),
+// at the same 2x resolution as the photo. room-fx.png says where each effect goes:
+// R = glass, G = fairy lights, B = city lights.
 
 const VERT = `
 attribute vec2 aPos;
@@ -14,10 +16,11 @@ void main() {
 
 const FRAG = `
 precision highp float;
-uniform sampler2D uImg;
-uniform sampler2D uFx;
+uniform sampler2D uImg;   // the region, at 2x
+uniform sampler2D uFx;    // the full effect mask, at 1x
 uniform float uTime;
-uniform vec2 uRes;
+uniform vec4 uRegion;     // x, y, w, h in image px (1x)
+uniform vec2 uImgSize;    // full image size (1x)
 varying vec2 vUv;
 
 float hash(vec2 p) {
@@ -26,7 +29,6 @@ float hash(vec2 p) {
   return fract((p3.x + p3.y) * p3.z);
 }
 
-// little drops stuck to the glass that appear and evaporate (xy = lens normal, z = mask)
 vec3 dots(vec2 px, float cell, float t) {
   vec2 id = floor(px / cell);
   vec2 f = fract(px / cell) - 0.5;
@@ -39,14 +41,13 @@ vec3 dots(vec2 px, float cell, float t) {
   return vec3(d / max(r, 1e-3), smoothstep(r, r * 0.7, length(d)));
 }
 
-// drops sliding down with a clear trail (xy = normal, z = drop, w = trail)
 vec4 sliders(vec2 px, float t) {
   float colW = 26.0;
   float col = floor(px.x / colW);
   float h = hash(vec2(col, 3.7));
   float h2 = hash(vec2(col, 9.1));
   float speed = 22.0 + h * 55.0;
-  float span = uRes.y + 300.0;
+  float span = uImgSize.y + 300.0;
   float travel = t * speed + h2 * 4000.0;
   float isOn = step(0.55, hash(vec2(col, floor(travel / span))));
   float y = mod(travel, span) - 150.0;
@@ -61,7 +62,6 @@ vec4 sliders(vec2 px, float t) {
   return vec4((d / r) * drop, drop, trail);
 }
 
-// rain falling outside, thin slanted streaks
 float streaks(vec2 px, float t) {
   vec2 q = vec2(px.x + px.y * 0.1, px.y);
   float colW = 7.0;
@@ -76,10 +76,9 @@ float streaks(vec2 px, float t) {
 }
 
 void main() {
-  vec2 uv = vUv;
-  vec4 fx = texture2D(uFx, uv);
+  vec2 px = uRegion.xy + vUv * uRegion.zw;
+  vec4 fx = texture2D(uFx, px / uImgSize);
   float glass = fx.r;
-  vec2 px = uv * uRes;
   float t = uTime;
 
   vec2 n = vec2(0.0);
@@ -94,19 +93,17 @@ void main() {
     rain = streaks(px, t) * glass;
   }
 
-  vec3 col = texture2D(uImg, uv - n * glass * 5.0 / uRes).rgb;
+  vec3 col = texture2D(uImg, vUv - n * glass * 5.0 / uRegion.zw).rgb;
   float ln = length(n);
   col *= 1.0 - smoothstep(0.55, 1.0, ln) * dropMask * 0.35;
   float spec = smoothstep(0.8, 0.97, dot(normalize(n + 1e-4), normalize(vec2(-0.45, -0.6))));
   col += vec3(1.0, 0.85, 0.65) * spec * dropMask * ln * 0.25;
   col += vec3(0.75, 0.8, 0.85) * rain * 0.16;
 
-  // fairy lights: each bulb gently breathes at its own pace
   float hb = hash(floor(px / 16.0));
   float tw = 0.5 + 0.5 * sin(t * (0.8 + hb * 1.8) + hb * 40.0);
   col += col * fx.g * (tw * 0.6 - 0.2);
 
-  // distant city lights shimmer through the rain
   float hc = hash(floor(px / 9.0) + 7.0);
   col *= 1.0 + fx.b * 0.3 * sin(t * (0.5 + hc * 1.6) + hc * 30.0);
 
@@ -116,30 +113,37 @@ void main() {
 function loadImage(src) {
   return new Promise((resolve, reject) => {
     const img = new Image()
+    img.decoding = 'async'
     img.onload = () => resolve(img)
     img.onerror = reject
     img.src = src
   })
 }
 
-export default function SceneCanvas({ imgSrc, fxSrc, width, height, onReady }) {
+export default function SceneCanvas({ imgSrc, fxSrc, imgSize, region, scale = 1.5, srcScale = 2 }) {
   const ref = useRef(null)
 
   useEffect(() => {
     const canvas = ref.current
     let raf = 0
     let disposed = false
-    const gl = canvas.getContext('webgl', { antialias: false, premultipliedAlpha: false })
+    const gl = canvas.getContext('webgl', { antialias: false, alpha: false })
+    if (!gl) {
+      canvas.style.display = 'none' // the <img> underneath still shows the room
+      return
+    }
 
     Promise.all([loadImage(imgSrc), loadImage(fxSrc)])
       .then(([img, fx]) => {
         if (disposed) return
-        if (!gl) {
-          // no WebGL: just show the still image
-          canvas.getContext('2d')?.drawImage(img, 0, 0, width, height)
-          onReady?.()
-          return
-        }
+        // crop the window region out of the 2x photo
+        const crop = document.createElement('canvas')
+        crop.width = Math.round(region.w * scale)
+        crop.height = Math.round(region.h * scale)
+        const cx = crop.getContext('2d')
+        cx.imageSmoothingQuality = 'high'
+        cx.drawImage(img, region.x * srcScale, region.y * srcScale, region.w * srcScale, region.h * srcScale, 0, 0, crop.width, crop.height)
+
         const sh = (type, src) => {
           const s = gl.createShader(type)
           gl.shaderSource(s, src)
@@ -153,53 +157,61 @@ export default function SceneCanvas({ imgSrc, fxSrc, width, height, onReady }) {
         gl.linkProgram(prog)
         gl.useProgram(prog)
 
-        const buf = gl.createBuffer()
-        gl.bindBuffer(gl.ARRAY_BUFFER, buf)
+        gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer())
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW)
         const loc = gl.getAttribLocation(prog, 'aPos')
         gl.enableVertexAttribArray(loc)
         gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0)
 
         const tex = (image, unit) => {
-          const t = gl.createTexture()
           gl.activeTexture(gl.TEXTURE0 + unit)
-          gl.bindTexture(gl.TEXTURE_2D, t)
+          gl.bindTexture(gl.TEXTURE_2D, gl.createTexture())
           gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image)
           gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
           gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
           gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
           gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
         }
-        tex(img, 0)
+        tex(crop, 0)
         tex(fx, 1)
         gl.uniform1i(gl.getUniformLocation(prog, 'uImg'), 0)
         gl.uniform1i(gl.getUniformLocation(prog, 'uFx'), 1)
-        gl.uniform2f(gl.getUniformLocation(prog, 'uRes'), width, height)
+        gl.uniform4f(gl.getUniformLocation(prog, 'uRegion'), region.x, region.y, region.w, region.h)
+        gl.uniform2f(gl.getUniformLocation(prog, 'uImgSize'), imgSize.w, imgSize.h)
         const uTime = gl.getUniformLocation(prog, 'uTime')
-        gl.viewport(0, 0, width, height)
+        gl.viewport(0, 0, canvas.width, canvas.height)
 
         const start = performance.now()
-        let first = true
-        const frame = () => {
-          if (!document.hidden) {
+        let lastDraw = 0
+        const frame = (now = performance.now()) => {
+          // rain looks the same at 30 fps and costs half the GPU work
+          if (!document.hidden && now - lastDraw > 30) {
+            lastDraw = now
             gl.uniform1f(uTime, (performance.now() - start) / 1000)
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
-            if (first) {
-              first = false
-              onReady?.()
-            }
           }
           raf = requestAnimationFrame(frame)
         }
         frame()
+        canvas.classList.add('ready')
       })
-      .catch(() => onReady?.())
+      .catch(() => {
+        canvas.style.display = 'none'
+      })
 
     return () => {
       disposed = true
       cancelAnimationFrame(raf)
     }
-  }, [imgSrc, fxSrc, width, height, onReady])
+  }, [imgSrc, fxSrc, imgSize.w, imgSize.h, region.x, region.y, region.w, region.h, scale])
 
-  return <canvas ref={ref} width={width} height={height} className="scene-canvas" />
+  return (
+    <canvas
+      ref={ref}
+      width={Math.round(region.w * scale)}
+      height={Math.round(region.h * scale)}
+      className="scene-canvas"
+      style={{ left: region.x, top: region.y, width: region.w, height: region.h }}
+    />
+  )
 }
